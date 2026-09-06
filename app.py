@@ -205,4 +205,3 @@ send_startup_test_message()
 send_telegram_alert("US_OPEN_PRUEBA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")scheduler.add_job(func=monitor_live_matches, trigger="interval", minutes=2, id="monitoreo")scheduler.start()if name == 'main':app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
