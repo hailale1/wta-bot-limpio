@@ -193,6 +193,7 @@ def monitor_live_matches():
 # --- INICIALIZADOR ---
 init_db()
 send_startup_test_message()
+send_telegram_alert("Torneo_Prueba", "Jugadora Favorita", "Jugadora Rival", "Jugadora Favorita", 1.30, 2.10, 65.4)
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")
