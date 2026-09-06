@@ -8,9 +8,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-TELEGRAM_BOT_TOKEN = "8887068051:AAHFvKheGJCv7LV-EKlyUzY9Yb5WDdrbTb4"
-TELEGRAM_CHAT_ID = "484236900"
-ODDS_API_KEY = "544ed26f747262de2a2985d2cf87cf14"
+# LECTURA SEGURA: YA NO HAY TOKENS EXPUESTOS EN EL TEXTO
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
 DB_NAME = "wta_bot.db"
 
 PREMATCH_CACHE = {}
@@ -21,7 +22,9 @@ def home():
     return "Bot WTA Activo y Escaneando el Circuito en Vivo", 200
 
 def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob):
-    """Envía la alerta estructurada a Telegram."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logging.error("Faltan credenciales de Telegram.")
+        return
     url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
     html_content = (
         f"<b>🚨 ALERTA DE VALOR WTA 🚨</b>\n\n"
@@ -36,15 +39,18 @@ def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob)
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": html_content, "parse_mode": "HTML"}
     try:
         r = requests.post(url, json=payload, timeout=10)
+        logging.info(f"Envío de alerta. Estado Telegram: {r.status_code}")
     except Exception as e:
-        pass
+        logging.error(f"Error conectando con Telegram: {e}")
 
 def send_startup_test_message():
-    """Envía el mensaje de prueba rápido al iniciar."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logging.error("Faltan credenciales de Telegram.")
+        return
     url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": "<b>✅ Bot WTA Iniciado Correctamente</b>\nEl sistema se ha conectado con las líneas del final ordenadas.",
+        "text": "<b>✅ Bot WTA Iniciado Correctamente</b>\nConexión segura y protegida contra filtraciones.",
         "parse_mode": "HTML"
     }
     try:
@@ -74,6 +80,7 @@ def init_db():
     conn.close()
 
 def get_active_wta_tournaments():
+    if not ODDS_API_KEY: return []
     url = f"https://the-odds-api.com{ODDS_API_KEY}"
     try:
         r = requests.get(url, timeout=10)
@@ -175,6 +182,9 @@ def monitor_live_matches():
 
 init_db()
 send_startup_test_message()
+
+# ALERTA DE SEÑAL DE PRUEBA INMEDIATA
+send_telegram_alert("PRUEBA_SEGURA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")
