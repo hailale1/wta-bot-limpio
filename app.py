@@ -9,7 +9,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # --- CONFIGURACIÓN DE LOGS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# La API de cuotas se mantiene leyendo de Render (Asegúrate de que en Render se llame ODDS_API_KEY)
+# LECTURA DEL PANEL GRÁFICO DE RENDER
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
 DB_NAME = "wta_bot.db"
 
@@ -21,9 +23,11 @@ def home():
     return "Bot WTA Activo y Escaneando el Circuito en Vivo", 200
 
 def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob):
-    """Envía la alerta estructurada a Telegram usando el enlace real de producción."""
-    url = "https://telegram.org"
-    
+    """Envía la alerta estructurada a Telegram usando el método oficial sendMessage."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logging.error("Faltan credenciales de Telegram.")
+        return
+    url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
     html_content = (
         f"<b>🚨 ALERTA DE VALOR WTA 🚨</b>\n\n"
         f"🏆 <b>Torneo:</b> {tournament.replace('_', ' ').upper()}\n"
@@ -34,7 +38,7 @@ def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob)
         f"• Cuota en Vivo Actual: {live_odds}\n\n"
         f"🎯 <b>Probabilidad de Remontada:</b> {prob}%"
     )
-    payload = {"chat_id": "484236900", "text": html_content, "parse_mode": "HTML"}
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": html_content, "parse_mode": "HTML"}
     try:
         r = requests.post(url, json=payload, timeout=10)
         logging.info(f"Envío de alerta. Estado Telegram: {r.status_code}")
@@ -42,11 +46,14 @@ def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob)
         logging.error(f"Error conectando con Telegram: {e}")
 
 def send_startup_test_message():
-    """Envía un mensaje de prueba estándar al iniciar usando el enlace real de producción."""
-    url = "https://telegram.org"
+    """Envía un mensaje de prueba estándar al iniciar para validar tokens."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logging.error("Faltan credenciales de Telegram en el panel de Render.")
+        return
+    url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": "484236900",
-        "text": "<b>✅ Bot WTA Iniciado Correctamente</b>\nEl sistema se ha conectado de forma directa mediante un repositorio limpio sin archivos en conflicto.",
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": "<b>✅ Bot WTA Iniciado Correctamente</b>\nEl escáner de cuotas ya está corriendo en segundo plano de forma estable.",
         "parse_mode": "HTML"
     }
     try:
@@ -54,7 +61,7 @@ def send_startup_test_message():
         if r.status_code == 200:
             logging.info("🚀 ¡Mensaje de prueba enviado con éxito a Telegram!")
         else:
-            logging.error(f"❌ Falló mensaje de prueba. Código: {r.status_code}. Revisa si pusiste bien el ID del chat.")
+            logging.error(f"❌ Falló mensaje de prueba. Código: {r.status_code}. Revisa si el bot está en el chat.")
     except Exception as e:
         logging.error(f"❌ Error de conexión con Telegram: {e}")
 
@@ -193,12 +200,9 @@ def monitor_live_matches():
 # --- INICIALIZADOR ---
 init_db()
 send_startup_test_message()
-send_telegram_alert("Torneo_Prueba", "Jugadora Favorita", "Jugadora Rival", "Jugadora Favorita", 1.30, 2.10, 65.4)
+
+# ALERTA FORZADA AL ARRANCAR PARA CONFIRMAR LA SEÑAL EN TU CELULAR
+send_telegram_alert("US_OPEN_PRUEBA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")
-scheduler.add_job(func=monitor_live_matches, trigger="interval", minutes=2, id="monitoreo")
-scheduler.start()
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")scheduler.add_job(func=monitor_live_matches, trigger="interval", minutes=2, id="monitoreo")scheduler.start()if name == 'main':app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
