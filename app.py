@@ -3,6 +3,21 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
 DB_NAME = "wta_bot.db"
+import os
+import sqlite3
+import logging
+import requests
+from datetime import datetime, timedelta
+from flask import Flask
+from apscheduler.schedulers.background import BackgroundScheduler
+
+# --- LECTURA SEGURA DE CREDENCIALES DESDE EL PANEL DE RENDER ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
+DB_NAME = "wta_bot.db"
+
+# ... (El resto del código de tu archivo app.py se mantiene igual)
 
 import os
 import sqlite3
