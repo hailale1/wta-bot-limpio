@@ -196,6 +196,7 @@ def monitor_live_matches():
             logging.error(f"Error en monitoreo en vivo: {e}")
 
 # --- INICIALIZADOR ---
+send_telegram_alert("PRUEBA_FINAL_EXITOSA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
 init_db()
 send_startup_test_message()
 
