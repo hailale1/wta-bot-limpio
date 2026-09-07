@@ -1,24 +1,3 @@
-# --- LECTURA SEGURA DE CREDENCIALES DESDE EL PANEL DE RENDER ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
-DB_NAME = "wta_bot.db"
-import os
-import sqlite3
-import logging
-import requests
-from datetime import datetime, timedelta
-from flask import Flask
-from apscheduler.schedulers.background import BackgroundScheduler
-
-# --- LECTURA SEGURA DE CREDENCIALES DESDE EL PANEL DE RENDER ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
-DB_NAME = "wta_bot.db"
-
-# ... (El resto del código de tu archivo app.py se mantiene igual)
-
 import os
 import sqlite3
 import logging
@@ -30,10 +9,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # --- CONFIGURACIÓN DE LOGS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# CREDENCIALES
-TELEGRAM_BOT_TOKEN = "8887068051:AAHFvKheGJCv7LV-EKlyUzY9Yb5WDdrbTb4"
-TELEGRAM_CHAT_ID = "484236900"
-ODDS_API_KEY = "544ed26f747262de2a2985d2cf87cf14"
+# --- LECTURA SEGURA DE CREDENCIALES DESDE EL PANEL DE RENDER ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
 DB_NAME = "wta_bot.db"
 
 PREMATCH_CACHE = {}
@@ -206,7 +185,6 @@ def monitor_live_matches():
                                 if live_odds_fav:
                                     break
                             
-                            # Lógica de detección de valor (Si la favorita sube de cuota en vivo)
                             if live_odds_fav and live_odds_fav > (fav_pre_odds * 1.5):
                                 prob = calculate_comeback_probability(fav_pre_odds, live_odds_fav)
                                 send_telegram_alert(tournament, p1, p2, fav_name, fav_pre_odds, live_odds_fav, prob)
@@ -217,15 +195,12 @@ def monitor_live_matches():
 init_db()
 scheduler = BackgroundScheduler()
 
-# Programar chequeo de cartelera cada 4 horas y escáner en vivo cada 2 minutos
 scheduler.add_job(schedule_wta_matches, 'interval', hours=4, args=[scheduler], next_run_time=datetime.now())
 scheduler.add_job(monitor_live_matches, 'interval', minutes=2)
 scheduler.start()
 
-# Mensaje de verificación al desplegar con éxito
 send_startup_test_message()
 
 if __name__ == '__main__':
-    # Usar el puerto asignado por Render o el 5000 de forma local
     port = int(os.environ.get("PORT", 5000))
-
+    app.run(host='0.0.0.0', port=port)
