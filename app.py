@@ -106,7 +106,7 @@ def fetch_single_match_odds(sport_key, match_id, p1, p2):
                         for bookmaker in bookmakers:
                             markets = bookmaker.get('markets', [])
                             if markets and len(markets) > 0:
-                                for o in markets[0].get('outcomes', []):
+                                for o in markets.get('outcomes', []):
                                     if o.get('name') == p1: p1_odds = o.get('price')
                                     elif o.get('name') == p2: p2_odds = o.get('price')
                                 break
@@ -178,7 +178,7 @@ def monitor_live_matches():
                             for bookmaker in bookmakers:
                                 markets = bookmaker.get('markets', [])
                                 if markets and len(markets) > 0:
-                                    for o in markets[0].get('outcomes', []):
+                                    for o in markets.get('outcomes', []):
                                         if o.get('name') == fav_name:
                                             live_odds_fav = o.get('price')
                                             break
