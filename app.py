@@ -9,7 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # --- CONFIGURACIÓN DE LOGS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# CREDENCIALES FIJAS INYECTADAS MANUALMENTE EN EL TEXTO
+# CREDENCIALES
 TELEGRAM_BOT_TOKEN = "8887068051:AAHFvKheGJCv7LV-EKlyUzY9Yb5WDdrbTb4"
 TELEGRAM_CHAT_ID = "484236900"
 ODDS_API_KEY = "544ed26f747262de2a2985d2cf87cf14"
@@ -23,7 +23,7 @@ def home():
     return "Bot WTA Activo y Escaneando el Circuito en Vivo", 200
 
 def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob):
-    """Envía la alerta estructurada a Telegram usando la URL oficial impecable."""
+    """Envía la alerta estructurada a Telegram usando la URL oficial."""
     url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
     html_content = (
         f"<b>🚨 ALERTA DE VALOR WTA 🚨</b>\n\n"
@@ -40,7 +40,7 @@ def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob)
         r = requests.post(url, json=payload, timeout=10)
         logging.info(f"Envío de alerta. Estado Telegram: {r.status_code}")
     except Exception as e:
-        logging.error(f"Error conectando con Telegram: {e}")
+        logging.error(f"Error conectando con Telegram en alerta: {e}")
 
 def send_startup_test_message():
     """Envía el mensaje de prueba rápido al iniciar."""
@@ -57,7 +57,7 @@ def send_startup_test_message():
         else:
             logging.error(f"❌ Falló mensaje de prueba. Código: {r.status_code}")
     except Exception as e:
-        logging.error(f"❌ Error de conexión con Telegram: {e}")
+        logging.error(f"❌ Error de conexión con Telegram en inicio: {e}")
 
 def calculate_comeback_probability(pre_odds_fav, live_odds_fav):
     if not pre_odds_fav or pre_odds_fav <= 1.0: return 50.0
@@ -81,9 +81,10 @@ def init_db():
     conn.close()
 
 def get_active_wta_tournaments():
-    url = f"https://the-odds-api.com{ODDS_API_KEY}"
+    url = "https://the-odds-api.com"
+    params = {'apiKey': ODDS_API_KEY}
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, params=params, timeout=10)
         if r.status_code == 200:
             return [s['key'] for s in r.json() if 'tennis_wta' in s['key']]
         return []
@@ -92,7 +93,7 @@ def get_active_wta_tournaments():
         return []
 
 def fetch_single_match_odds(sport_key, match_id, p1, p2):
-    url = f"https://the-odds-api.com{sport_key}/odds/"
+    url = f"https://the-odds-api.com/{sport_key}/odds/"
     params = {'apiKey': ODDS_API_KEY, 'regions': 'eu', 'markets': 'h2h'}
     try:
         r = requests.get(url, params=params, timeout=10)
@@ -105,7 +106,7 @@ def fetch_single_match_odds(sport_key, match_id, p1, p2):
                         for bookmaker in bookmakers:
                             markets = bookmaker.get('markets', [])
                             if markets and len(markets) > 0:
-                                for o in markets.get('outcomes', []):
+                                for o in markets[0].get('outcomes', []):
                                     if o.get('name') == p1: p1_odds = o.get('price')
                                     elif o.get('name') == p2: p2_odds = o.get('price')
                                 break
@@ -128,7 +129,7 @@ def fetch_single_match_odds(sport_key, match_id, p1, p2):
 def schedule_wta_matches(scheduler):
     wta_tournaments = get_active_wta_tournaments()
     for sport_key in wta_tournaments:
-        url = f"https://the-odds-api.com{sport_key}/odds/"
+        url = f"https://the-odds-api.com/{sport_key}/odds/"
         params = {'apiKey': ODDS_API_KEY, 'regions': 'eu', 'markets': 'h2h'}
         try:
             r = requests.get(url, params=params, timeout=10)
@@ -156,9 +157,10 @@ def monitor_live_matches():
     logging.info("🔄 Verificando partidos EN VIVO circuito WTA...")
     wta_tournaments = get_active_wta_tournaments()
     for sport_key in wta_tournaments:
-        url = f"https://the-odds-api.com{sport_key}/odds/?apiKey={ODDS_API_KEY}&regions=eu&markets=h2h"
+        url = f"https://the-odds-api.com/{sport_key}/odds/"
+        params = {'apiKey': ODDS_API_KEY, 'regions': 'eu', 'markets': 'h2h'}
         try:
-            r = requests.get(url, timeout=10)
+            r = requests.get(url, params=params, timeout=10)
             if r.status_code == 200:
                 for match in r.json():
                     match_id = match.get('id')
@@ -176,30 +178,33 @@ def monitor_live_matches():
                             for bookmaker in bookmakers:
                                 markets = bookmaker.get('markets', [])
                                 if markets and len(markets) > 0:
-                                    for o in markets.get('outcomes', []):
-                                        if o.get('name') == fav_name: 
+                                    for o in markets[0].get('outcomes', []):
+                                        if o.get('name') == fav_name:
                                             live_odds_fav = o.get('price')
+                                            break
+                                if live_odds_fav:
                                     break
-                                
-                            if live_odds_fav and fav_pre_odds:
-                                if live_odds_fav >= (fav_pre_odds * 1.4):
-                                    prob = calculate_comeback_probability(fav_pre_odds, live_odds_fav)
-                                    send_telegram_alert(tournament, p1, p2, fav_name, fav_pre_odds, live_odds_fav, prob)
+                            
+                            # Lógica de detección de valor (Si la favorita sube de cuota en vivo)
+                            if live_odds_fav and live_odds_fav > (fav_pre_odds * 1.5):
+                                prob = calculate_comeback_probability(fav_pre_odds, live_odds_fav)
+                                send_telegram_alert(tournament, p1, p2, fav_name, fav_pre_odds, live_odds_fav, prob)
         except Exception as e:
-            logging.error(f"Error en monitoreo en vivo: {e}")
+            logging.error(f"Error en monitor en vivo: {e}")
 
-# --- INICIALIZADOR ---
+# --- INICIALIZADOR DE PROCESOS ---
 init_db()
-send_startup_test_message()
-
-# ALERTA FORZADA AL ARRANCAR PARA CONFIRMAR LA SEÑAL EN TU CELULAR
-send_telegram_alert("PRUEBA_SISTEMA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
-
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")
-scheduler.add_job(func=monitor_live_matches, trigger="interval", minutes=2, id="monitoreo")
+
+# Programar chequeo de cartelera cada 4 horas y escáner en vivo cada 2 minutos
+scheduler.add_job(schedule_wta_matches, 'interval', hours=4, args=[scheduler], next_run_time=datetime.now())
+scheduler.add_job(monitor_live_matches, 'interval', minutes=2)
 scheduler.start()
 
+# Mensaje de verificación al desplegar con éxito
+send_startup_test_message()
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # Usar el puerto asignado por Render o el 5000 de forma local
+    port = int(os.environ.get("PORT", 5000))
 
