@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 
+# --- CONFIGURACIÓN DE LOGS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# LECTURA SEGURA: YA NO HAY TOKENS EXPUESTOS EN EL TEXTO
+# LECTURA OBLIGATORIA DEL PANEL GRÁFICO DE RENDER
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 ODDS_API_KEY = os.getenv("ODDS_API_KEY", "").strip()
@@ -22,6 +23,7 @@ def home():
     return "Bot WTA Activo y Escaneando el Circuito en Vivo", 200
 
 def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob):
+    """Envía la alerta estructurada a Telegram usando el método oficial."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logging.error("Faltan credenciales de Telegram.")
         return
@@ -44,19 +46,24 @@ def send_telegram_alert(tournament, p1, p2, fav_name, pre_odds, live_odds, prob)
         logging.error(f"Error conectando con Telegram: {e}")
 
 def send_startup_test_message():
+    """Envía un mensaje de prueba estándar al iniciar."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        logging.error("Faltan credenciales de Telegram.")
+        logging.error("Faltan credenciales de Telegram en el panel de Render.")
         return
     url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": "<b>✅ Bot WTA Iniciado Correctamente</b>\nConexión segura y protegida contra filtraciones.",
+        "text": "<b>✅ Bot WTA Iniciado Correctamente</b>\nEl escáner de cuotas ya está corriendo en segundo plano de forma estable.",
         "parse_mode": "HTML"
     }
     try:
         r = requests.post(url, json=payload, timeout=10)
+        if r.status_code == 200:
+            logging.info("🚀 ¡Mensaje de prueba enviado con éxito a Telegram!")
+        else:
+            logging.error(f"❌ Falló mensaje de prueba. Código: {r.status_code}.")
     except Exception as e:
-        pass
+        logging.error(f"❌ Error de conexión con Telegram: {e}")
 
 def calculate_comeback_probability(pre_odds_fav, live_odds_fav):
     if not pre_odds_fav or pre_odds_fav <= 1.0: return 50.0
@@ -88,6 +95,7 @@ def get_active_wta_tournaments():
             return [s['key'] for s in r.json() if 'tennis_wta' in s['key']]
         return []
     except Exception as e:
+        logging.error(f"Error obteniendo torneos: {e}")
         return []
 
 def fetch_single_match_odds(sport_key, match_id, p1, p2):
@@ -108,6 +116,7 @@ def fetch_single_match_odds(sport_key, match_id, p1, p2):
                                     if o.get('name') == p1: p1_odds = o.get('price')
                                     elif o.get('name') == p2: p2_odds = o.get('price')
                                 break
+                    
                     if p1_odds and p2_odds:
                         fav_name = p1 if p1_odds < p2_odds else p2
                         fav_pre_odds = p1_odds if p1_odds < p2_odds else p2_odds
@@ -119,8 +128,9 @@ def fetch_single_match_odds(sport_key, match_id, p1, p2):
                         ''', (match_id, sport_key, p1, p2, p1_odds, p2_odds, fav_name, fav_pre_odds))
                         conn.commit()
                         conn.close()
+                        logging.info(f"💾 PRE-PARTIDO REGISTRADO: {p1} vs {p2}")
     except Exception as e:
-        pass
+        logging.error(f"Error en snapshot pre-partido: {e}")
 
 def schedule_wta_matches(scheduler):
     wta_tournaments = get_active_wta_tournaments()
@@ -146,9 +156,11 @@ def schedule_wta_matches(scheduler):
                             fetch_single_match_odds(sport_key, match_id, p1, p2)
                             PREMATCH_CACHE[match_id] = True
         except Exception as e:
-            pass
+            logging.error(f"Error al programar cartelera: {e}")
 
 def monitor_live_matches():
+    """Escáner real del circuito WTA en directo."""
+    logging.info("🔄 Verificando partidos EN VIVO circuito WTA...")
     wta_tournaments = get_active_wta_tournaments()
     for sport_key in wta_tournaments:
         url = f"https://the-odds-api.com{sport_key}/odds/?apiKey={ODDS_API_KEY}&regions=eu&markets=h2h"
@@ -162,6 +174,7 @@ def monitor_live_matches():
                     cursor.execute("SELECT tournament, player_1, player_2, fav_name, fav_pre_odds FROM wta_matches WHERE match_id=?", (match_id,))
                     db_data = cursor.fetchone()
                     conn.close()
+                    
                     if db_data:
                         tournament, p1, p2, fav_name, fav_pre_odds = db_data
                         bookmakers = match.get('bookmakers', [])
@@ -171,25 +184,25 @@ def monitor_live_matches():
                                 markets = bookmaker.get('markets', [])
                                 if markets and len(markets) > 0:
                                     for o in markets.get('outcomes', []):
-                                        if o.get('name') == fav_name: live_odds_fav = o.get('price')
+                                        if o.get('name') == fav_name: 
+                                            live_odds_fav = o.get('price')
                                     break
+                                
                             if live_odds_fav and fav_pre_odds:
                                 if live_odds_fav >= (fav_pre_odds * 1.4):
                                     prob = calculate_comeback_probability(fav_pre_odds, live_odds_fav)
                                     send_telegram_alert(tournament, p1, p2, fav_name, fav_pre_odds, live_odds_fav, prob)
         except Exception as e:
-            pass
+            logging.error(f"Error en monitoreo en vivo: {e}")
 
+# --- INICIALIZADOR ---
 init_db()
 send_startup_test_message()
 
-# ALERTA DE SEÑAL DE PRUEBA INMEDIATA
-send_telegram_alert("PRUEBA_SEGURA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
+# ALERTA DE SEÑAL FORZADA MANUAL AL ARRANCAR
+send_telegram_alert("PRUEBA_SISTEMA", "Marta Kostyuk", "Linda Noskova", "Marta Kostyuk", 1.40, 2.20, 72.5)
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=lambda: schedule_wta_matches(scheduler), trigger="interval", minutes=60, id="cartelera")
 scheduler.add_job(func=monitor_live_matches, trigger="interval", minutes=2, id="monitoreo")
-scheduler.start()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
